@@ -30,6 +30,7 @@ async function sendFormRequest(app, path, body) {
     body: new URLSearchParams(body),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'Origin': 'http://localhost:3000',
     },
   });
 }
@@ -58,7 +59,7 @@ describe('/login', () => {
     const app = require('./app');
     const res = await app.request('/login');
     expect(res.headers.get('Content-Type')).toBe('text/html; charset=UTF-8');
-    expect(await res.text()).toMatch(/<a href='\/auth\/github'/);
+    expect(await res.text()).toMatch(/<a href="\/auth\/github"/);
     expect(res.status).toBe(200);
   });
 
@@ -120,6 +121,29 @@ describe('/schedules', () => {
     expect(body).toMatch(/テスト候補2/);
     expect(body).toMatch(/テスト候補3/);
     expect(res.status).toBe(200);
+  });
+
+  test('バリデーション', async () => {
+    await prisma.user.upsert({
+      where: { userId: testUser.userId },
+      create: testUser,
+      update: testUser,
+    });
+
+    const app = require('./app');
+
+    const res = await app.request('/schedules/12345');
+    expect(res.status).toBe(400);
+
+    const editRes = await app.request('/schedules/12345/edit');
+    expect(editRes.status).toBe(400);
+
+    const postRes = await sendFormRequest(app, '/schedules', {
+      scheduleName: 'テスト予定1',
+      memo: 'テストメモ1\r\nテストメモ2',
+    });
+
+    expect(postRes.status).toBe(400);
   });
 });
 
@@ -321,6 +345,9 @@ describe('/schedules/:scheduleId/delete', () => {
     // 削除
     const res = await app.request(`/schedules/${scheduleId}/delete`, {
       method: 'POST',
+      headers: {
+        'Origin': 'http://localhost:3000',
+      },
     });
     expect(res.status).toBe(302);
 
